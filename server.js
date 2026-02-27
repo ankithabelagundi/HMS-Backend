@@ -12,6 +12,8 @@ const errorHandler = require('./src/middleware/errorMiddleware');
 const billingRoutes = require('./src/routes/billingRoutes');
 const usersRoutes = require("./src/routes/usersRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
+const receptionistRoutes = require("./src/routes/receptionistRoutes");
+const adminRoutes = require("./src/routes/adminRoutes");
 
 
 
@@ -29,6 +31,8 @@ app.use("/api/doctors", doctorRoutes);
 app.use("/api/users", usersRoutes);
 app.use('/api/medical-records', medicalRecordRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/receptionist", receptionistRoutes);
 
 app.use(errorHandler);
 app.get("/", (req, res) => {

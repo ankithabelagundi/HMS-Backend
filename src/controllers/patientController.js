@@ -136,6 +136,30 @@ const updatePatientProfile = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const getPatientStats = async (req, res) => {
+  try {
+    const totalPatients = await Patient.countDocuments();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayPatients = await Patient.countDocuments({
+      createdAt: { $gte: today },
+    });
+
+    const male = await Patient.countDocuments({ gender: "male" });
+    const female = await Patient.countDocuments({ gender: "female" });
+
+    res.json({
+      totalPatients,
+      todayPatients,
+      male,
+      female,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 module.exports = {
   createPatient,
@@ -143,6 +167,7 @@ module.exports = {
   getPatientById,
   updatePatient,
   deletePatient,
-  updatePatientProfile
+  updatePatientProfile,
+  getPatientStats
 };
 

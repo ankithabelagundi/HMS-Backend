@@ -101,23 +101,42 @@ const createOrder = async (req, res) => {
   };
 
   const order = await razorpay.orders.create(options);
-
   res.json(order);
 };
 const crypto = require("crypto");
 
 const verifyPayment = async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    billing_id
+  } = req.body;
 
   const body = razorpay_order_id + "|" + razorpay_payment_id;
 
   const expectedSignature = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(body.toString())
+    .update(body)
     .digest("hex");
 
   if (expectedSignature === razorpay_signature) {
-    // update billing payment_status = "paid"
+
+    // ✅ Mark invoice as paid
+    await supabase
+      .from("billing")
+      .update({ status: "paid" })
+      .eq("id", billing_id);
+
+    // ✅ Record payment
+    await supabase
+      .from("payments")
+      .insert([{
+        billing_id,
+        payment_method: "razorpay",
+        paid_amount: 0, // optional if you want to pass
+      }]);
+
     return res.json({ message: "Payment successful" });
   }
 
@@ -159,6 +178,42 @@ const generateInvoice = async (req, res, next) => {
     next(err);
   }
 };
+const getPayments = async (req, res) => {
+  try {
+    let query = supabase
+      .from("payments")
+      .select(`
+        *,
+        billing ( invoice_number )
+      `);
+
+    if (req.user.role === "patient") {
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("user_id", req.user.id)
+        .single();
+
+      const { data: bills } = await supabase
+        .from("billing")
+        .select("id")
+        .eq("patient_id", patient.id);
+
+      const billIds = bills.map(b => b.id);
+
+      query = query.in("billing_id", billIds);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 module.exports = {
   createInvoice,
@@ -166,5 +221,6 @@ module.exports = {
   createOrder,
   verifyPayment,
   generateInvoice,
-  getInvoices
+  getInvoices,
+  getPayments
 };

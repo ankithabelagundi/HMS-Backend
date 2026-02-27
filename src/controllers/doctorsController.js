@@ -51,5 +51,27 @@ const deleteDoctor = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const uploadSignature = async (req, res) => {
+  const file = req.file;
 
-module.exports = { getDoctors,deleteDoctor};
+  const { data, error } = await supabase.storage
+    .from("signatures")
+    .upload(`doctor-${req.user.id}.png`, file.buffer, {
+      contentType: file.mimetype
+    });
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  const publicUrl = supabase.storage
+    .from("signatures")
+    .getPublicUrl(data.path).data.publicUrl;
+
+  await supabase
+    .from("doctors")
+    .update({ signature_url: publicUrl })
+    .eq("user_id", req.user.id);
+
+  res.json({ url: publicUrl });
+};
+
+module.exports = { getDoctors,deleteDoctor,uploadSignature};

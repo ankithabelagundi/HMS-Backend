@@ -1,5 +1,15 @@
-const supabase = require('../config/supabase');
+const supabase = require("../config/supabase");
 
+// 🔥 Import billing model functions
+const {
+  createInvoiceDB,
+  addBillingItemsDB,
+  updateInvoiceTotalDB
+} = require("../models/billingModel");
+
+/* =====================================================
+   CREATE APPOINTMENT (PATIENT)
+===================================================== */
 const createAppointment = async (req, res) => {
   try {
     const { doctor_id, appointment_date } = req.body;
@@ -8,7 +18,7 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    // 🔹 Get patient linked to logged-in user
+    // Get patient linked to logged-in user
     const { data: patient, error: patientError } = await supabase
       .from("patients")
       .select("id")
@@ -19,7 +29,7 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ error: "Patient record not found" });
     }
 
-    // 🔹 Create appointment using patient.id
+    // Create appointment
     const { data, error } = await supabase
       .from("appointments")
       .insert([
@@ -42,6 +52,10 @@ const createAppointment = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/* =====================================================
+   GET APPOINTMENTS
+===================================================== */
 const getAppointments = async (req, res) => {
   try {
     let query = supabase
@@ -59,7 +73,7 @@ const getAppointments = async (req, res) => {
         )
       `);
 
-    // 🔹 If patient → only their appointments
+    // If patient → only their appointments
     if (req.user.role === "patient") {
       const { data: patient } = await supabase
         .from("patients")
@@ -70,7 +84,7 @@ const getAppointments = async (req, res) => {
       query = query.eq("patient_id", patient.id);
     }
 
-    // 🔹 If doctor → only their appointments
+    // If doctor → only their appointments
     if (req.user.role === "doctor") {
       const { data: doctor } = await supabase
         .from("doctors")
@@ -93,53 +107,69 @@ const getAppointments = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/* =====================================================
+   UPDATE APPOINTMENT STATUS
+   🔥 Auto-create invoice when completed
+===================================================== */
 const updateAppointmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // 🔹 Update appointment status
+    // 1️⃣ Update appointment status
     const { data: appointment, error } = await supabase
-      .from('appointments')
+      .from("appointments")
       .update({ status })
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
 
-    // ✅ STEP 3: If appointment completed → create billing
+    // 2️⃣ If completed → create invoice automatically
     if (status === "completed") {
 
-      const consultationFee = 500; // you can change later
+      console.log("Creating invoice for appointment:", appointment.id);
 
-      const { error: billingError } = await supabase
-        .from("billing")
-        .insert([
+      const consultationFee = 500;
+
+      // Create invoice
+      const { data: invoice, error: invoiceError } =
+        await createInvoiceDB(appointment.patient_id);
+
+      if (invoiceError) {
+        console.log("Invoice creation error:", invoiceError.message);
+      } else {
+
+        // Add billing item
+        await addBillingItemsDB([
           {
-            patient_id: appointment.patient_id,
-            appointment_id: appointment.id,
-            total_amount: consultationFee,
-            status: "pending"
+            billing_id: invoice.id,
+            description: "Consultation Fee",
+            amount: consultationFee
           }
         ]);
 
-      if (billingError) {
-        return res.status(400).json({ error: billingError.message });
+        // Update total
+        await updateInvoiceTotalDB(invoice.id, consultationFee);
+
+        console.log("Invoice created successfully");
       }
     }
 
     res.json(appointment);
 
   } catch (err) {
+    console.error("Update appointment error:", err);
     res.status(500).json({ error: err.message });
   }
 };
-
 
 module.exports = {
   createAppointment,
   getAppointments,
   updateAppointmentStatus
 };
-
