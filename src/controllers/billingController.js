@@ -322,6 +322,7 @@ const verifyVideoPayment = async (req, res) => {
       .eq("id", consultation_id);
 
     res.json({
+      sucess:true,
       meet_link,
       token
     });
