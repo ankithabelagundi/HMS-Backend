@@ -214,6 +214,123 @@ const getPayments = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const createVideoOrder = async (req, res) => {
+  try {
+    const { doctor_id, amount } = req.body;
+
+    if (!doctor_id || !amount) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    // 🔥 Get patient id properly
+    const { data: patient, error: patientError } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (patientError || !patient) {
+      console.log("PATIENT ERROR:", patientError);
+      return res.status(400).json({ message: "Patient not found" });
+    }
+
+    // Insert consultation
+    const { data: consultation, error } = await supabase
+      .from("video_consultations")
+      .insert([{
+        patient_id: patient.id,
+        doctor_id,
+        amount,
+        payment_status: "pending"
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.log("INSERT ERROR:", error);
+      return res.status(400).json({ error: error.message });
+    }
+
+    const order = await razorpay.orders.create({
+      amount: amount * 100,
+      currency: "INR",
+      receipt: `vid_${consultation.id.substring(0, 15)}`
+    });
+
+    res.json({
+      id: order.id,
+      amount: order.amount,
+      consultation_id: consultation.id
+    });
+
+  } catch (err) {
+    console.log("SERVER ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const verifyVideoPayment = async (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      consultation_id
+    } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ message: "Payment verification failed" });
+    }
+
+    // Get consultation
+    const { data: consultation } = await supabase
+      .from("video_consultations")
+      .select("*")
+      .eq("id", consultation_id)
+      .single();
+
+    if (!consultation) {
+      return res.status(404).json({ message: "Consultation not found" });
+    }
+
+    // Create meeting link (Jitsi)
+    const meet_link = `https://meet.jit.si/${consultation.id}_${Date.now()}`;
+
+    // Token count
+    const { count } = await supabase
+      .from("video_consultations")
+      .select("*", { count: "exact", head: true })
+      .eq("doctor_id", consultation.doctor_id);
+
+    const token = (count || 0);
+
+    // Update consultation
+    await supabase
+      .from("video_consultations")
+      .update({
+        payment_status: "paid",
+        meet_link,
+        token_number: token
+      })
+      .eq("id", consultation_id);
+
+    res.json({
+      meet_link,
+      token
+    });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: err.message });
+  }
+};
 
 module.exports = {
   createInvoice,
@@ -222,5 +339,7 @@ module.exports = {
   verifyPayment,
   generateInvoice,
   getInvoices,
-  getPayments
+  getPayments,
+  createVideoOrder,
+  verifyVideoPayment
 };

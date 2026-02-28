@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const db = require("../config/db");
 
 // 🔥 Import billing model functions
 const {
@@ -168,8 +169,40 @@ const updateAppointmentStatus = async (req, res) => {
   }
 };
 
+const createVideoAppointment = async (req, res) => {
+  try {
+    const { doctor_id, slot_id } = req.body;
+    const patient_id = req.user.id;
+
+    // Check slot
+    const slot = await db("doctor_slots")
+      .where({ id: slot_id, is_booked: false })
+      .first();
+
+    if (!slot) {
+      return res.status(400).json({ message: "Slot not available" });
+    }
+
+    // Create provisional appointment
+    const [appointment] = await db("appointments")
+      .insert({
+        doctor_id,
+        patient_id,
+        date: slot.date,
+        mode: "video",
+        payment_status: "pending"
+      })
+      .returning("*");
+
+    res.json({ appointment });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   createAppointment,
   getAppointments,
-  updateAppointmentStatus
+  updateAppointmentStatus,
+  createVideoAppointment
 };

@@ -11,7 +11,9 @@ const {
   verifyPayment,
   generateInvoice,
   getInvoices,
-  getPayments
+  getPayments,
+  createVideoOrder,
+  verifyVideoPayment
 } = require('../controllers/billingController');
 
 // 🔥 GET ALL INVOICES (for patient / admin)
@@ -24,11 +26,14 @@ router.post('/invoice', protect, authorize('admin','staff'), createInvoice);
 router.post('/payment', protect, authorize('admin','staff'), recordPayment);
 
 // 🔥 Razorpay
-router.post('/create-order', protect, createOrder);
+router.post('/video/create-order', protect, createOrder);
 router.post('/verify-payment', protect, verifyPayment);
 
 // 🔥 Download Invoice PDF
 router.get('/invoice/:id', protect, generateInvoice);
 router.get('/payments', protect, getPayments);
+
+router.post("/create-order", protect, createVideoOrder);
+router.post("/verify", protect, verifyVideoPayment);
 
 module.exports = router;

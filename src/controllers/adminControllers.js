@@ -183,6 +183,14 @@ const resetStaffPassword = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+const getVideoStats = async (req, res) => {
+  const { count } = await supabase
+    .from("video_consultations")
+    .select("*", { count: "exact", head: true })
+    .eq("payment_status", "paid");
+
+  res.json({ totalVideoConsultations: count });
+};
 
 module.exports = {
   adminStats,
@@ -190,6 +198,7 @@ module.exports = {
   getStaff,
   deleteStaff,
   toggleStaffStatus,
-   resetStaffPassword
+   resetStaffPassword,
+   getVideoStats
 };
 

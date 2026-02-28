@@ -113,6 +113,7 @@ const receptionistStats = async (req, res) => {
 ====================================== */
 const adminStats = async (req, res) => {
   try {
+    // ===== BASIC COUNTS =====
     const { count: totalDoctors } = await supabase
       .from("doctors")
       .select("*", { count: "exact", head: true });
@@ -135,21 +136,30 @@ const adminStats = async (req, res) => {
       .select("*", { count: "exact", head: true })
       .eq("status", "scheduled");
 
+    // ===== TOTAL REVENUE =====
     const { data: revenue } = await supabase
       .from("billing")
       .select("total_amount")
       .eq("status", "paid");
 
     const totalRevenue =
-      revenue?.reduce((sum, r) => sum + r.total_amount, 0) || 0;
+      revenue?.reduce((sum, r) => sum + Number(r.total_amount), 0) || 0;
 
+    // ===== VIDEO CONSULTATION COUNT =====
+    const { count: totalVideoConsultations } = await supabase
+      .from("video_consultations")
+      .select("*", { count: "exact", head: true })
+      .eq("payment_status", "paid");
+
+    // ===== RESPONSE =====
     res.json({
       totalDoctors,
       totalPatients,
       totalAppointments,
       completedAppointments,
       pendingAppointments,
-      totalRevenue
+      totalRevenue,
+      totalVideoConsultations
     });
 
   } catch (error) {
@@ -221,7 +231,34 @@ const doctorPerformance = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+const getDoctorVideoConsultations = async (req, res) => {
+  try {
+    const { data: doctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("user_id", req.user.id)
+      .single();
 
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    const { data, error } = await supabase
+      .from("video_consultations")
+      .select("*")
+      .eq("doctor_id", doctor.id)
+      .eq("payment_status", "paid");
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data || []);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 
 module.exports = {
@@ -229,5 +266,6 @@ module.exports = {
   receptionistStats,
    adminStats,
   monthlyRevenue,
-  doctorPerformance
+  doctorPerformance,
+  getDoctorVideoConsultations
 };
