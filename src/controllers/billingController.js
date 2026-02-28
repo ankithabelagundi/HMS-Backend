@@ -1,3 +1,4 @@
+const supabase = require("../config/supabase");
 const {
   createInvoiceDB,
   addBillingItemsDB,
@@ -5,7 +6,7 @@ const {
   recordPaymentDB,
   updateInvoiceStatusDB
 } = require('../models/billingModel');
-const supabase = require("../config/supabase");
+
 
 const getInvoices = async (req, res, next) => {
   try {
