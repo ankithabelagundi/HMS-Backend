@@ -122,41 +122,45 @@ const createOrder = async (req, res) => {
 const crypto = require("crypto");
 
 const verifyPayment = async (req, res) => {
-  const {
-    razorpay_order_id,
-    razorpay_payment_id,
-    razorpay_signature,
-    billing_id
-  } = req.body;
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      billing_id,
+      amount
+    } = req.body;
 
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
 
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(body)
-    .digest("hex");
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
 
-  if (expectedSignature === razorpay_signature) {
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ message: "Payment verification failed" });
+    }
 
-    // ✅ Mark invoice as paid
     await supabase
       .from("billing")
       .update({ status: "paid" })
       .eq("id", billing_id);
 
-    // ✅ Record payment
     await supabase
       .from("payments")
       .insert([{
         billing_id,
         payment_method: "razorpay",
-        paid_amount: 0, // optional if you want to pass
+        paid_amount: amount
       }]);
 
-    return res.json({ message: "Payment successful" });
-  }
+    res.json({ success: true });
 
-  res.status(400).json({ message: "Payment verification failed" });
+  } catch (err) {
+    console.log("VERIFY ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 };
 const PDFDocument = require("pdfkit");
 
