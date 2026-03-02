@@ -95,14 +95,29 @@ const razorpay = new Razorpay({
 });
 
 const createOrder = async (req, res) => {
-  const options = {
-    amount: req.body.amount * 100,
-    currency: "INR",
-    receipt: "receipt_" + Date.now(),
-  };
+  try {
+    const { amount, billing_id } = req.body;
 
-  const order = await razorpay.orders.create(options);
-  res.json(order);
+    if (!amount || !billing_id) {
+      return res.status(400).json({ message: "Missing amount or billing_id" });
+    }
+
+    const order = await razorpay.orders.create({
+      amount: Number(amount) * 100,
+      currency: "INR",
+      receipt: `bill_${billing_id.substring(0, 10)}`
+    });
+
+    res.json({
+      id: order.id,
+      amount: order.amount,
+      billing_id
+    });
+
+  } catch (err) {
+    console.log("CREATE ORDER ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 };
 const crypto = require("crypto");
 
