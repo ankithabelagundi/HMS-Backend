@@ -98,8 +98,8 @@ const createOrder = async (req, res) => {
   try {
     const { amount, billing_id } = req.body;
 
-    if (!amount || !billing_id) {
-      return res.status(400).json({ message: "Missing amount or billing_id" });
+    if (!amount || isNaN(amount)) {
+      return res.status(400).json({ message: "Invalid amount" });
     }
 
     const order = await razorpay.orders.create({
@@ -108,11 +108,7 @@ const createOrder = async (req, res) => {
       receipt: `bill_${billing_id.substring(0, 10)}`
     });
 
-    res.json({
-      id: order.id,
-      amount: order.amount,
-      billing_id
-    });
+    res.json(order);
 
   } catch (err) {
     console.log("CREATE ORDER ERROR:", err);
