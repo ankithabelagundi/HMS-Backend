@@ -105,10 +105,13 @@ const createOrder = async (req, res) => {
     const order = await razorpay.orders.create({
       amount: Number(amount) * 100,
       currency: "INR",
-      receipt: `bill_${billing_id.substring(0, 10)}`
+      receipt: `bill_${billing_id.substring(0, 8)}`
     });
 
-    res.json(order);
+    res.json({
+      order_id: order.id,
+      amount: order.amount
+    });
 
   } catch (err) {
     console.log("CREATE ORDER ERROR:", err);
@@ -123,8 +126,7 @@ const verifyPayment = async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      billing_id,
-      amount
+      billing_id
     } = req.body;
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
@@ -138,17 +140,30 @@ const verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Payment verification failed" });
     }
 
+    // 🔥 Get original bill to fetch amount
+    const { data: bill } = await supabase
+      .from("billing")
+      .select("total_amount")
+      .eq("id", billing_id)
+      .single();
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    // Update bill status
     await supabase
       .from("billing")
       .update({ status: "paid" })
       .eq("id", billing_id);
 
+    // Record payment properly
     await supabase
       .from("payments")
       .insert([{
         billing_id,
         payment_method: "razorpay",
-        paid_amount: amount
+        paid_amount: bill.total_amount
       }]);
 
     res.json({ success: true });
