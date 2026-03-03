@@ -98,6 +98,8 @@ const createOrder = async (req, res) => {
   try {
     const { amount, billing_id } = req.body;
 
+    console.log("BODY:", req.body);
+
     if (!amount || isNaN(amount)) {
       return res.status(400).json({ message: "Invalid amount" });
     }
@@ -105,9 +107,8 @@ const createOrder = async (req, res) => {
     const order = await razorpay.orders.create({
       amount: Number(amount) * 100,
       currency: "INR",
-      receipt: `bill_${billing_id.substring(0, 8)}`
+      receipt: `bill_${Date.now()}`
     });
-    console.log("BODY:", req.body);
 
     res.json({
       order_id: order.id,
@@ -119,6 +120,7 @@ const createOrder = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 const crypto = require("crypto");
 
 const verifyPayment = async (req, res) => {
