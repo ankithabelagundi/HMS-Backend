@@ -107,6 +107,7 @@ const createOrder = async (req, res) => {
       currency: "INR",
       receipt: `bill_${billing_id.substring(0, 8)}`
     });
+    console.log("BODY:", req.body);
 
     res.json({
       order_id: order.id,
