@@ -19,6 +19,59 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ error: "Missing fields" });
     }
 
+    // 🔥 Convert appointment date
+    const appointmentDate = new Date(appointment_date);
+
+    // 🔥 Current IST time
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    // ❌ Prevent past bookings
+    if (appointmentDate < nowIST) {
+      return res.status(400).json({
+        error: "Cannot book appointment for past date/time"
+      });
+    }
+    // 🔥 Check if doctor already has appointment at same time
+const { data: existing } = await supabase
+  .from("appointments")
+  .select("id")
+  .eq("doctor_id", doctor_id)
+  .eq("appointment_date", appointment_date)
+  .neq("status", "cancelled");
+
+if (existing && existing.length > 0) {
+  return res.status(400).json({
+    error: "This time slot is already booked for the doctor"
+  });
+}
+// 🔥 Limit appointments per doctor per day
+const dateOnly = appointment_date.split("T")[0];
+
+const { count } = await supabase
+  .from("appointments")
+  .select("*", { count: "exact", head: true })
+  .eq("doctor_id", doctor_id)
+  .gte("appointment_date", `${dateOnly}T00:00:00`)
+  .lte("appointment_date", `${dateOnly}T23:59:59`)
+  .neq("status", "cancelled");
+
+if (count >= 20) {
+  return res.status(400).json({
+    error: "Doctor is fully booked for this day"
+  });
+}
+
+    // 🔥 Optional: Restrict hospital hours (9AM–6PM)
+    const hour = appointmentDate.getHours();
+
+    if (hour < 9 || hour > 18) {
+      return res.status(400).json({
+        error: "Appointments allowed only between 9AM and 6PM IST"
+      });
+    }
+
     // Get patient linked to logged-in user
     const { data: patient, error: patientError } = await supabase
       .from("patients")
@@ -199,6 +252,7 @@ const createVideoAppointment = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 module.exports = {
   createAppointment,
